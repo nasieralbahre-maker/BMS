@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.BMSMobile" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#1e4ed0</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/splash_bg</item>
+    </style>
+</resources>
