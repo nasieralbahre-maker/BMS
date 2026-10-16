@@ -62,6 +62,19 @@ function applyPrintStyle(){
   r.style.fontSize = (Number(p.fontSize) || 12) + 'px';
 }
 
+// تنفيذ الطباعة: داخل تطبيق أندرويد (WebView) لا يعمل window.print() تلقائياً،
+// لذلك نستدعي الجسر الأصلي AndroidPrint.print() الذي يفتح معاينة الطباعة عبر النظام.
+// في المتصفح العادي نعود إلى window.print() كالمعتاد.
+function nativePrint(){
+  try{
+    if(window.AndroidPrint && typeof window.AndroidPrint.print === 'function'){
+      window.AndroidPrint.print();
+      return;
+    }
+  }catch(e){}
+  try{ window.print(); }catch(e){}
+}
+
 // ===== State =====
 let MENU = [];
 let CATEGORIES = ['الكل'];
@@ -817,7 +830,7 @@ function printReceipt(order){
   // تطبيق أحجام خطوط الفاتورة المستقلة
   applyInvoiceFonts();
   // أعط المتصفح لحظة لرسم المحتوى ثم اطبع
-  setTimeout(() => window.print(), 60);
+  setTimeout(() => nativePrint(), 60);
 }
 
 // تطبيق أحجام خطوط الفاتورة المستقلة على #receipt (تؤثر في المعاينة والطباعة والـ PDF)
@@ -931,7 +944,7 @@ function printDailyReport(orders){
   const rcpt = document.getElementById('receipt');
   rcpt.innerHTML = html;
   applyPrintStyle();
-  setTimeout(() => window.print(), 60);
+  setTimeout(() => nativePrint(), 60);
 }
 
 // ===== Customers modal (POS) =====

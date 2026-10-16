@@ -8,6 +8,9 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
 import android.provider.Settings;
 import android.os.Bundle;
 import android.view.View;
@@ -86,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
 
         web.addJavascriptInterface(new BioBridge(), "AndroidBio");
         web.addJavascriptInterface(new NotifyBridge(), "AndroidNotify");
+        web.addJavascriptInterface(new PrintBridge(), "AndroidPrint");
 
         createNotificationChannel();
         ensureNotifPermission();
@@ -212,6 +216,30 @@ public class MainActivity extends AppCompatActivity {
                     + jsStr(reqId) + "," + (ok ? "true" : "false") + "," + jsStr(msg) + ");";
             web.post(() -> web.evaluateJavascript(js, null));
         }
+    }
+
+    // ===================== جسر الطباعة =====================
+    // WebView لا يدعم window.print() تلقائياً، لذلك نوفّر جسراً أصلياً
+    // يفتح معاينة الطباعة عبر نظام أندرويد (PrintManager) مع احترام قواعد
+    // @media print في صفحة الويب (تُطبع الفاتورة #receipt فقط).
+    private class PrintBridge {
+        @JavascriptInterface
+        public void print() {
+            runOnUiThread(() -> doWebPrint());
+        }
+    }
+
+    private void doWebPrint() {
+        try {
+            PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+            if (pm == null || web == null) return;
+            String jobName = getString(R.string.app_name) + " — فاتورة";
+            PrintDocumentAdapter adapter = web.createPrintDocumentAdapter(jobName);
+            PrintAttributes attrs = new PrintAttributes.Builder()
+                    .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                    .build();
+            pm.print(jobName, adapter, attrs);
+        } catch (Exception ignored) {}
     }
 
     // ===================== جسر الإشعارات =====================
