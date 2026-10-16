@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- طبقة الأمام لأيقونة التطبيق التكيّفية: نضع الشعار داخل المنطقة الآمنة
+     (بهامش 25%) حتى لا تقصّه أقنعة الدائرة / المربع المدور. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/app_logo"
+    android:inset="25%" />

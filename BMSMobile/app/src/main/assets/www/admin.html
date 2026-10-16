@@ -93,9 +93,20 @@ body.admin-body{
   box-shadow:4px 0 30px -18px rgba(0,0,0,.5);
 }
 .side-brand{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
   font-size:19px;font-weight:800;padding:6px 10px 16px;margin-bottom:10px;
   border-bottom:1px solid rgba(255,255,255,.14);line-height:1.5;
 }
+.side-brand-txt{display:flex;align-items:center;min-width:0;}
+.side-toggle{
+  display:none;align-items:center;gap:6px;flex:none;
+  background:rgba(255,255,255,.14);color:#fff;border:none;border-radius:10px;
+  padding:7px 12px;font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;
+  transition:background .15s,transform .12s;
+}
+.side-toggle:hover{background:rgba(255,255,255,.24);}
+.side-toggle:active{transform:scale(.96);}
+.side-toggle .st-ico{font-size:11px;line-height:1;transition:transform .2s;}
 .side nav{display:flex;flex-direction:column;gap:6px;margin-top:6px;flex:1;}
 .side-link{
   display:flex;align-items:center;gap:10px;width:100%;text-align:right;
@@ -393,6 +404,12 @@ body.admin-dark .settings-secnav .sec-chip{background:#0e1a2f;color:#cbd5e1;bord
     align-items:center;padding:12px;gap:6px;
   }
   .side-brand{width:100%;padding:4px 6px 10px;margin-bottom:4px;font-size:17px;}
+  .side-toggle{display:inline-flex;}
+  .side.collapsed{padding-bottom:8px;}
+  .side.collapsed .side-brand{margin-bottom:0;padding-bottom:4px;border-bottom:none;}
+  .side.collapsed nav{display:none;}
+  .side.collapsed .side-foot{display:none;}
+  .side.collapsed .side-toggle .st-ico{transform:rotate(180deg);}
   .side nav{flex-direction:row;flex-wrap:wrap;gap:5px;flex:1;}
   .side nav .side-link{padding:9px 12px;font-size:13px;}
   .side-foot{flex-direction:row;flex-wrap:wrap;width:100%;border-top:none;padding-top:4px;margin-top:0;}
@@ -540,7 +557,7 @@ body.admin-dark .settings-subhead{color:var(--ink);}
 <!-- Dashboard -->
 <div class="dash" id="dash" style="display:none">
   <aside class="side">
-    <div class="side-brand"><img src="logo.png" alt="Sweets" style="width:30px;height:30px;object-fit:contain;background:#fff;border-radius:8px;padding:3px;vertical-align:middle;margin-left:7px" /><span id="brandName">النظام</span></div>
+    <div class="side-brand"><span class="side-brand-txt"><img src="logo.png" alt="Sweets" style="width:30px;height:30px;object-fit:contain;background:#fff;border-radius:8px;padding:3px;vertical-align:middle;margin-left:7px" /><span id="brandName">النظام</span></span><button type="button" class="side-toggle" id="sideToggle" aria-expanded="true" aria-label="توسيع أو طي القائمة"><span class="st-ico">▲</span><span class="st-txt">طي</span></button></div>
     <nav>
       <button class="side-link active" data-tab="orders">📋 الطلبات</button>
       <button class="side-link" data-tab="customers">🧾 العملاء والمتبقي</button>
@@ -1203,5 +1220,35 @@ body.admin-dark .settings-subhead{color:var(--ink);}
 <script src="firebase-config.js"></script>
 <script src="db.js"></script>
 <script src="admin.js"></script>
+<script>
+/* توسيع / طي القائمة الزرقاء على الجوال */
+(function(){
+  var side=document.querySelector('.side');
+  var btn=document.getElementById('sideToggle');
+  if(!side||!btn)return;
+  var txt=btn.querySelector('.st-txt');
+  function setState(collapsed){
+    side.classList.toggle('collapsed',collapsed);
+    btn.setAttribute('aria-expanded',String(!collapsed));
+    if(txt)txt.textContent=collapsed?'توسيع':'طي';
+    try{localStorage.setItem('bmsSideCollapsed',collapsed?'1':'0');}catch(e){}
+  }
+  btn.addEventListener('click',function(){
+    setState(!side.classList.contains('collapsed'));
+  });
+  /* استعادة آخر حالة على الشاشات الصغيرة */
+  try{
+    if(window.matchMedia('(max-width:860px)').matches && localStorage.getItem('bmsSideCollapsed')==='1'){
+      setState(true);
+    }
+  }catch(e){}
+  /* طي تلقائي بعد اختيار تبويب على الجوال لإظهار المحتوى */
+  document.querySelectorAll('.side nav .side-link').forEach(function(l){
+    l.addEventListener('click',function(){
+      if(window.matchMedia('(max-width:860px)').matches)setState(true);
+    });
+  });
+})();
+</script>
 </body>
 </html>

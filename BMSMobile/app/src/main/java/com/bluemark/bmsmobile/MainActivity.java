@@ -4,9 +4,11 @@ import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
 import android.os.Bundle;
 import android.view.View;
 import android.webkit.JavascriptInterface;
@@ -36,6 +38,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView web;
     private PermissionRequest pendingCameraRequest;
     private static final int REQ_CAMERA = 1001;
+    private static final int REQ_NOTIF = 1002;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +88,9 @@ public class MainActivity extends AppCompatActivity {
         web.addJavascriptInterface(new NotifyBridge(), "AndroidNotify");
 
         createNotificationChannel();
+        ensureNotifPermission();
+        startOrderService();
+        requestBatteryExemption();
 
         if (savedInstanceState != null) {
             web.restoreState(savedInstanceState);
@@ -93,9 +99,46 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // طلب إذن الإشعارات (Android 13+) حتى تظهر في شريط النظام
+    private void ensureNotifPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIF);
+            }
+        }
+    }
+
+    // تشغيل خدمة مراقبة الطلبات في الخلفية
+    private void startOrderService() {
+        try {
+            Intent svc = new Intent(this, OrderNotificationService.class);
+            ContextCompat.startForegroundService(this, svc);
+        } catch (Exception ignored) {}
+    }
+
+    // طلب استثناء التطبيق من تحسين البطارية ليبقى نشطًا في الخلفية
+    private void requestBatteryExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    i.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(i);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
     @Override
     public void onRequestPermissionsResult(int code, @NonNull String[] p, @NonNull int[] r) {
         super.onRequestPermissionsResult(code, p, r);
+        if (code == REQ_NOTIF) {
+            // بعد منح/رفض إذن الإشعارات نضمن أن الخدمة تعمل
+            startOrderService();
+            return;
+        }
         if (code == REQ_CAMERA && pendingCameraRequest != null) {
             boolean granted = r.length > 0 && r[0] == PackageManager.PERMISSION_GRANTED;
             if (granted) {
@@ -196,7 +239,7 @@ public class MainActivity extends AppCompatActivity {
             try { nid = (id != null) ? id.hashCode() : (int) System.currentTimeMillis(); }
             catch (Exception e) { nid = (int) System.currentTimeMillis(); }
             NotificationCompat.Builder b = new NotificationCompat.Builder(MainActivity.this, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setSmallIcon(R.drawable.ic_stat_notify)
                     .setContentTitle(title == null ? "BMS" : title)
                     .setContentText(text == null ? "" : text)
                     .setAutoCancel(true)
