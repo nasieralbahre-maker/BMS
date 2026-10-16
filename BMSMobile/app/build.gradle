@@ -29,6 +29,12 @@ android {
 }
 
 dependencies {
+    // توحيد (محاذاة) جميع وحدات Kotlin stdlib على نسخة واحدة لمنع تكرار الأصناف.
+    // منذ Kotlin 1.8 أُدمجت kotlin-stdlib-jdk7/jdk8 داخل kotlin-stdlib، وهذه الـ BOM
+    // ترفع نسخ jdk7/jdk8 القديمة (1.6.21 القادمة ترانزيتيًا من biometric) إلى 1.8.22
+    // المتوافقة مع ما تجلبه AndroidX، فيزول خطأ checkDebugDuplicateClasses.
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.webkit:webkit:1.11.0'
     implementation 'androidx.biometric:biometric:1.1.0'
