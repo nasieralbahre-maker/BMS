@@ -32,6 +32,8 @@ button{font-family:inherit}
 .admin-link:hover{background:rgba(255,255,255,.28)}
 .report-link{background:rgba(255,255,255,.15);color:#fff;padding:8px 15px;border-radius:10px;font-weight:600;font-size:14px;border:none;cursor:pointer;font-family:inherit;transition:.2s}
 .report-link:hover{background:rgba(255,255,255,.28)}
+.report-link.pos-update-link{background:rgba(52,199,89,.28)}
+.report-link.pos-update-link:hover{background:rgba(52,199,89,.45)}
 
 /* ===== POS Layout ===== */
 .pos{display:grid;grid-template-columns:1fr 390px;gap:0;height:calc(100vh - 58px)}
