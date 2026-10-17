@@ -65,6 +65,9 @@ public class MainActivity extends AppCompatActivity {
         s.setUseWideViewPort(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
+        // دعم العمل دون اتصال عبر كاش التطبيق عند تعذّر الوصول للموقع البعيد
+        try { s.setDomStorageEnabled(true); } catch (Exception ignored) {}
+
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -90,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
         web.addJavascriptInterface(new BioBridge(), "AndroidBio");
         web.addJavascriptInterface(new NotifyBridge(), "AndroidNotify");
         web.addJavascriptInterface(new PrintBridge(), "AndroidPrint");
+        web.addJavascriptInterface(new UpdateBridge(), "AndroidApp");
 
         createNotificationChannel();
         ensureNotifPermission();
@@ -99,7 +103,9 @@ public class MainActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             web.restoreState(savedInstanceState);
         } else {
-            web.loadUrl("file:///android_asset/www/index.html");
+            // يُحمَّل النظام من الاستضافة البعيدة (Netlify) حتى تصل التحديثات تلقائياً
+            // دون إعادة بناء التطبيق. أي تحديث = رفع الملفات على الموقع فقط.
+            web.loadUrl("https://bluemark1.netlify.app/");
         }
     }
 
@@ -215,6 +221,22 @@ public class MainActivity extends AppCompatActivity {
             final String js = "window.__bioNativeResult && window.__bioNativeResult("
                     + jsStr(reqId) + "," + (ok ? "true" : "false") + "," + jsStr(msg) + ");";
             web.post(() -> web.evaluateJavascript(js, null));
+        }
+    }
+
+    // ===================== جسر التحديثات =====================
+    // يستدعيه زر «تحديث الآن» في الويب (performAppReload) لمسح الكاش
+    // ثم إعادة تحميل الصفحة لجلب أحدث نسخة من الموقع.
+    private class UpdateBridge {
+        @JavascriptInterface
+        public void clearAndReload() {
+            runOnUiThread(() -> {
+                try {
+                    web.clearCache(true);
+                    web.clearHistory();
+                    web.reload();
+                } catch (Exception ignored) {}
+            });
         }
     }
 

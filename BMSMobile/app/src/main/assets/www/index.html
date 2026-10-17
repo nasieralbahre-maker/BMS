@@ -394,12 +394,14 @@
     <button class="brand-switch new-order" id="dashToCashier" style="display:none">➕ كاشير</button>
     <button class="brand-switch to-dash" id="dashLink" style="display:none">📊 لوحة</button>
     <button class="brand-switch qr-scan-btn" id="qrScanBtn" style="display:none">📷 مسح QR</button>
+    <button class="brand-switch log-btn" id="activityLogBtn" style="display:none">📋 السجل</button>
   </div>
   <div class="head-right">
     <div class="pos-clock" id="posClock"></div>
     <div class="pos-user" id="posUserBox" style="display:none">
       <span class="pos-user-name" id="posUserName"></span>
       <button class="report-link" id="posSwitchBtn">🔄 تبديل</button>
+      <button class="report-link pos-update-link" id="posUpdateBtn">🔄 تحديث</button>
       <button class="report-link" id="extFormBtn">➕ استمارة <span class="acctreq-badge" id="extSubBadge" style="display:none">0</span></button>
       <button class="bio-enroll-btn hidden" id="bioEnrollBtn">👆 بصمة</button>
       <button class="bio-enroll-btn bio-enroll-face hidden" id="bioFaceEnrollBtn">👁️ وجه</button>
@@ -495,6 +497,9 @@
       <div class="deh-tools">
         <span class="conn-pill" id="dashConn">…</span>
         <button type="button" class="rep-btn acctreq-btn" id="dashAcctReqBtn">🆕 طلبات الحساب<span class="acctreq-badge" id="acctReqBadge" style="display:none">0</span></button>
+        <button type="button" class="rep-btn maint-btn" id="dashMaintBtn">🚨 طوارئ النظام</button>
+        <button type="button" class="rep-btn whatsnew-btn" id="dashWhatsNewBtn">📣 الميزات الجديدة</button>
+        <button type="button" class="rep-btn update-btn" id="dashUpdateBtn">🔄 التحديثات</button>
         <button type="button" class="rep-btn" id="dashReportBtn">📑 إنشاء تقرير عام</button>
         <button type="button" class="money-eye" id="dashMoneyEye">👁️ إظهار المبالغ</button>
       </div>
@@ -789,6 +794,140 @@
       <canvas id="qrCanvas" class="qr-scan-canvas"></canvas>
       <button class="qr-scan-cancel" id="qrScanCancel">إلغاء</button>
     </div>
+  </div>
+</div>
+
+<!-- نافذة سجل الحركة (نشاط المستخدمين) -->
+<div class="modal" id="activityLogModal">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-head">
+      <h3>📋 سجل الحركة</h3>
+      <button class="close-btn" id="closeActivityLog">✕</button>
+    </div>
+    <div class="log-toolbar">
+      <input type="text" id="logSearch" placeholder="🔍 بحث (اسم المستخدم / الحركة)" />
+      <select id="logUserFilter"><option value="">كل المستخدمين</option></select>
+      <button class="log-clear-btn" id="logClearBtn" title="مسح السجل">🗑️ مسح</button>
+    </div>
+    <div class="log-list" id="logList"><div class="log-empty">لا توجد حركات بعد</div></div>
+  </div>
+</div>
+
+<!-- شاشة طوارئ النظام (صيانة) — تُعرض لكل المستخدمين -->
+<div id="maintOverlay" class="maint-overlay">
+  <div class="maint-inner">
+    <div class="maint-icons">
+      <span>🛠️</span><span>⚙️</span><span>🔧</span>
+    </div>
+    <div class="maint-spinner"></div>
+    <h1 class="maint-title" id="maintTitle">النظام تحت الصيانة</h1>
+    <p class="maint-note" id="maintNote">نعتذر عن الإزعاج، نقوم حالياً بأعمال صيانة لتحسين الخدمة. سنعود قريباً.</p>
+    <button type="button" class="maint-exit" id="maintExitBtn" style="display:none">✖ إنهاء الصيانة (للمدير)</button>
+  </div>
+</div>
+
+<!-- نافذة تحكم طوارئ النظام (للمدير) -->
+<div class="modal" id="maintCtrlModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🚨 طوارئ النظام</h3>
+      <button class="close-btn" id="closeMaintCtrl">✕</button>
+    </div>
+    <div style="padding:4px 2px">
+      <p style="font-size:13px;color:#64748b;line-height:1.8;margin:0 0 12px">عند التفعيل، تظهر شاشة زرقاء «النظام تحت الصيانة» لدى جميع المستخدمين على كل الأجهزة فوراً.</p>
+      <label class="signup-form" style="gap:6px;padding:0;font-size:13.5px;font-weight:800;color:#334155">عنوان الشاشة
+        <input type="text" id="maintTitleInput" placeholder="النظام تحت الصيانة" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:11px 13px;font-family:inherit;font-size:14px;width:100%;box-sizing:border-box;margin-top:6px" />
+      </label>
+      <label class="signup-form" style="gap:6px;padding:10px 0 0;font-size:13.5px;font-weight:800;color:#334155">رسالة توضيحية
+        <textarea id="maintNoteInput" rows="3" placeholder="نعتذر عن الإزعاج..." style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:11px 13px;font-family:inherit;font-size:14px;width:100%;box-sizing:border-box;margin-top:6px;resize:vertical"></textarea>
+      </label>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button type="button" class="btn" id="maintActivateBtn" style="flex:1;background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff">🚨 تفعيل الصيانة</button>
+        <button type="button" class="btn" id="maintDeactivateBtn" style="flex:1;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff">✅ إيقاف الصيانة</button>
+      </div>
+      <div id="maintStatus" style="text-align:center;font-size:13px;font-weight:700;margin-top:12px;color:#64748b"></div>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة محرر الميزات الجديدة (للمدير) -->
+<div class="modal" id="whatsNewEditModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>📣 تحرير الميزات الجديدة</h3>
+      <button class="close-btn" id="closeWhatsNewEdit">✕</button>
+    </div>
+    <div style="padding:4px 2px">
+      <p style="font-size:13px;color:#64748b;line-height:1.8;margin:0 0 12px">اكتب الميزات الجديدة (سطر لكل ميزة). عند الحفظ، تُعرض لكل مستخدم مرة واحدة عند فتح التطبيق.</p>
+      <label class="signup-form" style="gap:6px;padding:0;font-size:13.5px;font-weight:800;color:#334155">عنوان (اختياري)
+        <input type="text" id="whatsNewTitleInput" placeholder="✨ ما الجديد؟" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:11px 13px;font-family:inherit;font-size:14px;width:100%;box-sizing:border-box;margin-top:6px" />
+      </label>
+      <label class="signup-form" style="gap:6px;padding:10px 0 0;font-size:13.5px;font-weight:800;color:#334155">الميزات (سطر لكل ميزة)
+        <textarea id="whatsNewItemsInput" rows="6" placeholder="مثال:&#10;زر سجل الحركة الجديد&#10;تصغير حجم العرض لكل مستخدم" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:11px 13px;font-family:inherit;font-size:14px;width:100%;box-sizing:border-box;margin-top:6px;resize:vertical;line-height:1.9"></textarea>
+      </label>
+      <button type="button" class="btn btn-primary btn-block" id="whatsNewSaveBtn" style="margin-top:16px">💾 حفظ وعرض للجميع</button>
+      <div id="whatsNewEditStatus" style="text-align:center;font-size:13px;font-weight:700;margin-top:12px;color:#64748b"></div>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة عرض الميزات الجديدة (تُعرض مرة واحدة لكل مستخدم) -->
+<div class="modal" id="whatsNewShowModal">
+  <div class="modal-box" style="max-width:460px">
+    <div class="whatsnew-hero">
+      <div class="whatsnew-hero-ic">✨</div>
+      <h3 id="whatsNewShowTitle">ما الجديد؟</h3>
+    </div>
+    <ul class="whatsnew-list" id="whatsNewShowList"></ul>
+    <button type="button" class="btn btn-primary btn-block" id="whatsNewGotIt" style="margin-top:8px">👍 رائع، فهمت</button>
+  </div>
+</div>
+
+<!-- نافذة تحكم التحديثات (للمدير): نشر تحديث فوري لكل الأجهزة -->
+<div class="modal" id="updateCtrlModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🔄 التحديثات</h3>
+      <button class="close-btn" id="closeUpdateCtrl">✕</button>
+    </div>
+    <div style="padding:4px 2px">
+      <p style="font-size:13px;color:#64748b;line-height:1.8;margin:0 0 12px">بعد رفع ملفاتك الجديدة على الموقع، اضغط «نشر التحديث». سيظهر لكل المستخدمين إشعار «يتوفر تحديث»، وعند الضغط يُمسح الكاش وتُحمَّل أحدث نسخة فوراً.</p>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px 14px;font-size:13px;color:#1e3a8a;font-weight:700;margin-bottom:12px">النسخة المنشورة حالياً: <span id="updateCurVer">0</span></div>
+      <label class="signup-form" style="gap:6px;padding:0;font-size:13.5px;font-weight:800;color:#334155">ملاحظة التحديث (اختياري)
+        <input type="text" id="updateNoteInput" placeholder="مثال: إضافة ميزة التحديثات" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:11px 13px;font-family:inherit;font-size:14px;width:100%;box-sizing:border-box;margin-top:6px" />
+      </label>
+      <button type="button" class="btn btn-block" id="updatePublishBtn" style="margin-top:16px;background:linear-gradient(135deg,#1b3fa8,#2563eb);color:#fff">📢 نشر التحديث للمستخدمين</button>
+      <button type="button" class="btn btn-block" id="updateSelfReloadBtn" style="margin-top:10px;background:#f1f5f9;color:#334155;border:2px solid #e2e8f0">♻️ تحديث جهازي الآن (مسح الكاش + إعادة تحميل)</button>
+      <div id="updateCtrlStatus" style="text-align:center;font-size:13px;font-weight:700;margin-top:12px;color:#64748b"></div>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة إشعار التحديث (تُعرض لكل مستخدم عند توفر نسخة جديدة) -->
+<div class="modal" id="updatePromptModal">
+  <div class="modal-box" style="max-width:440px">
+    <div class="update-hero">
+      <div class="update-hero-ic">🔄</div>
+      <h3>يتوفر تحديث جديد</h3>
+    </div>
+    <div style="padding:4px 18px 18px">
+      <p id="updatePromptNote" style="font-size:14px;color:#334155;line-height:1.9;text-align:center;margin:6px 0 4px">صدرت نسخة محدَّثة من النظام. اضغط «تحديث الآن» لتحميل أحدث الميزات.</p>
+      <button type="button" class="btn btn-block" id="updateNowBtn" style="margin-top:14px;background:linear-gradient(135deg,#1b3fa8,#2563eb);color:#fff">🚀 تحديث الآن</button>
+      <button type="button" class="btn btn-block" id="updateLaterBtn" style="margin-top:10px;background:transparent;color:#94a3b8;border:none">لاحقاً</button>
+    </div>
+  </div>
+</div>
+
+<!-- شاشة تقدّم التحديث (بروغرس بار أنيق من 1 إلى 100) -->
+<div class="update-progress-overlay" id="updateProgressOverlay">
+  <div class="update-progress-box">
+    <div class="update-progress-ic">🔄</div>
+    <h3 class="update-progress-title">جارٍ تحديث الملفات</h3>
+    <p class="update-progress-sub" id="updateProgressSub">لا تغلق التطبيق... جارٍ جلب أحدث نسخة</p>
+    <div class="update-progress-track">
+      <div class="update-progress-fill" id="updateProgressFill"></div>
+    </div>
+    <div class="update-progress-pct" id="updateProgressPct">0%</div>
   </div>
 </div>
 

@@ -169,6 +169,76 @@
 .brand-switch:active{transform:translateY(0);}
 .brand-switch.new-order{background:linear-gradient(120deg,#16a34a,#22c55e);box-shadow:0 8px 18px -8px rgba(22,163,74,.7);}
 .brand-switch.to-dash{background:linear-gradient(120deg,#1d4ed8,#3b82f6);box-shadow:0 8px 18px -8px rgba(37,99,235,.7);}
+.brand-switch.log-btn{background:linear-gradient(120deg,#ea580c,#f97316);box-shadow:0 8px 18px -8px rgba(234,88,12,.7);}
+
+/* نافذة سجل الحركة */
+.log-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
+.log-toolbar input,.log-toolbar select{font-family:'Cairo',sans-serif;font-size:13px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;flex:1;min-width:120px;}
+.log-clear-btn{font-family:'Cairo',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;border:none;border-radius:10px;padding:8px 12px;color:#fff;background:linear-gradient(120deg,#dc2626,#ef4444);white-space:nowrap;}
+.log-list{max-height:52vh;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:6px;}
+.log-empty{text-align:center;color:#94a3b8;padding:24px 0;font-size:13px;}
+.log-item{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #eef2f7;border-radius:12px;background:#fff;}
+.log-item .log-ic{font-size:16px;line-height:1.4;flex-shrink:0;}
+.log-item .log-main{flex:1;min-width:0;}
+.log-item .log-user{font-weight:700;font-size:13px;color:#0f172a;}
+.log-item .log-act{font-size:12.5px;color:#334155;margin-top:1px;word-break:break-word;}
+.log-item .log-meta{font-size:11px;color:#94a3b8;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;}
+.log-item .log-net-wifi{color:#16a34a;}
+.log-item .log-net-cell{color:#d97706;}
+.log-item .log-net-off{color:#dc2626;}
+.log-item.ev-login{border-inline-start:3px solid #16a34a;}
+.log-item.ev-logout{border-inline-start:3px solid #dc2626;}
+.log-item.ev-order{border-inline-start:3px solid #2563eb;}
+.log-item.ev-print{border-inline-start:3px solid #7c3aed;}
+
+/* شاشة طوارئ النظام (الصيانة) */
+.maint-overlay{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;
+  background:linear-gradient(160deg,#0b1f5c 0%,#123a9e 45%,#1e4ed0 100%);color:#fff;}
+.maint-overlay.show{display:flex;}
+.maint-inner{max-width:460px;}
+.maint-icons{font-size:40px;display:flex;gap:16px;justify-content:center;margin-bottom:18px;}
+.maint-icons span{animation:maintFloat 2.4s ease-in-out infinite;}
+.maint-icons span:nth-child(2){animation-delay:.3s;}
+.maint-icons span:nth-child(3){animation-delay:.6s;}
+@keyframes maintFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.maint-spinner{width:54px;height:54px;margin:0 auto 20px;border:5px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:maintSpin 1s linear infinite;}
+@keyframes maintSpin{to{transform:rotate(360deg)}}
+.maint-title{font-family:'Cairo',sans-serif;font-size:26px;font-weight:800;margin:0 0 12px;}
+.maint-note{font-size:15px;line-height:1.9;opacity:.9;margin:0 auto;max-width:380px;}
+.maint-exit{margin-top:24px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.4);color:#fff;
+  font-family:'Cairo',sans-serif;font-size:13px;font-weight:700;padding:10px 18px;border-radius:12px;cursor:pointer;}
+.maint-exit:hover{background:rgba(255,255,255,.28);}
+.rep-btn.maint-btn{background:linear-gradient(120deg,#dc2626,#ef4444);color:#fff;border:none;}
+.rep-btn.whatsnew-btn{background:linear-gradient(120deg,#7c3aed,#a855f7);color:#fff;border:none;}
+.rep-btn.update-btn{background:linear-gradient(120deg,#0ea5e9,#2563eb);color:#fff;border:none;}
+
+/* نافذة إشعار التحديث */
+.update-hero{text-align:center;padding:22px 18px 6px;}
+.update-hero-ic{font-size:46px;margin-bottom:8px;display:inline-block;animation:updSpin 2.6s linear infinite;}
+@keyframes updSpin{to{transform:rotate(360deg)}}
+.update-hero h3{margin:0;font-size:20px;color:#0f172a;font-weight:800;}
+
+/* شاشة تقدّم التحديث (بروغرس بار) */
+.update-progress-overlay{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(8,15,40,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+.update-progress-overlay.show{display:flex;animation:updOvIn .25s ease;}
+@keyframes updOvIn{from{opacity:0}to{opacity:1}}
+.update-progress-box{width:min(90vw,380px);background:linear-gradient(160deg,#ffffff,#f3f7ff);border-radius:22px;padding:30px 26px 26px;box-shadow:0 24px 60px rgba(8,15,40,.45);text-align:center;animation:updBoxIn .35s cubic-bezier(.2,.9,.3,1.2);}
+@keyframes updBoxIn{from{transform:translateY(16px) scale(.95);opacity:0}to{transform:none;opacity:1}}
+.update-progress-ic{font-size:52px;display:inline-block;margin-bottom:10px;animation:updSpin 2s linear infinite;}
+.update-progress-title{margin:0 0 6px;font-size:20px;font-weight:800;color:#0f172a;}
+.update-progress-sub{margin:0 0 20px;font-size:13px;color:#64748b;line-height:1.7;}
+.update-progress-track{height:14px;border-radius:999px;background:#e2e8f0;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.12);}
+.update-progress-fill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#1b3fa8,#2563eb,#38bdf8);background-size:200% 100%;animation:updBarFlow 1.4s linear infinite;transition:width .3s ease;box-shadow:0 0 12px rgba(56,189,248,.6);}
+@keyframes updBarFlow{to{background-position:200% 0}}
+.update-progress-pct{margin-top:14px;font-size:26px;font-weight:800;color:#1b3fa8;letter-spacing:.5px;}
+
+/* نافذة الميزات الجديدة */
+.whatsnew-hero{text-align:center;margin-bottom:14px;}
+.whatsnew-hero-ic{font-size:44px;margin-bottom:6px;animation:maintFloat 2.4s ease-in-out infinite;}
+.whatsnew-hero h3{margin:0;font-size:20px;color:#0f172a;}
+.whatsnew-list{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:9px;max-height:50vh;overflow-y:auto;}
+.whatsnew-list li{display:flex;gap:10px;align-items:flex-start;background:#f5f3ff;border:1px solid #ede9fe;border-radius:12px;padding:11px 13px;font-size:14px;color:#334155;line-height:1.6;}
+.whatsnew-list li::before{content:'✨';flex-shrink:0;}
 
 /* ===== شبكة بطاقات KPI ===== */
 .kpi-grid{

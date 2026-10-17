@@ -66,6 +66,7 @@ function applyPrintStyle(){
 // لذلك نستدعي الجسر الأصلي AndroidPrint.print() الذي يفتح معاينة الطباعة عبر النظام.
 // في المتصفح العادي نعود إلى window.print() كالمعتاد.
 function nativePrint(){
+  try{ if(typeof logActivity==='function') logActivity('print', 'طباعة فاتورة'); }catch(e){}
   try{
     if(window.AndroidPrint && typeof window.AndroidPrint.print === 'function'){
       window.AndroidPrint.print();
@@ -74,6 +75,39 @@ function nativePrint(){
   }catch(e){}
   try{ window.print(); }catch(e){}
 }
+
+// ===== سجل الحركة (ACTIVITY LOG) =====
+// ملاحظة: اسم شبكة WiFi (SSID) غير متاح من الويب/WebView بلا كود أندرويد أصلي +
+// إذن موقع؛ لذلك نسجّل نوع الشبكة (wifi/cellular) والاتصال فقط عبر navigator.connection.
+function netInfo(){
+  var out = { net:'unknown', online:true };
+  try{ out.online = (typeof navigator.onLine==='boolean') ? navigator.onLine : true; }catch(e){}
+  try{
+    var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if(!out.online){ out.net = 'none'; }
+    else if(c && c.type){ out.net = (c.type==='wifi') ? 'wifi' : (c.type==='cellular' ? 'cellular' : c.type); }
+    else if(c && c.effectiveType){ out.net = 'cellular'; }
+  }catch(e){}
+  return out;
+}
+function logActivity(event, action){
+  try{
+    var u = (typeof currentPosUser!=='undefined' && currentPosUser) ? currentPosUser : null;
+    var ni = netInfo();
+    var entry = {
+      user: u ? (u.name || u.username || '') : 'زائر',
+      username: u ? (u.username || '') : '',
+      role: u ? (u.role || '') : '',
+      event: event || 'action',
+      action: action || '',
+      net: ni.net,
+      online: ni.online,
+      ts: Date.now()
+    };
+    if(window.DB && typeof DB.addActivity==='function') DB.addActivity(entry);
+  }catch(e){}
+}
+try{ window.logActivity = logActivity; }catch(e){}
 
 // ===== State =====
 let MENU = [];
@@ -576,6 +610,7 @@ document.getElementById('payPrintBtn').onclick = async function(){
 
   // حفظ الطلب في الخلفية (سحابياً أو محلياً)
   selfOrderIds.add(order.id); // طلب أنشأه هذا الجهاز — لا تُكرّر تنبيهه عند وصول السنابشوت
+  try{ logActivity('order', 'إنشاء طلب #' + (order.no||'') + ' · ' + (order.total!=null? order.total+' ' : '') + (order.name||'')); }catch(e){}
   Promise.resolve(DB.addOrder(order)).catch(err => {
     console.error('تعذر حفظ الطلب:', err);
     showToast('تم الطبع، لكن تعذرت المزامنة السحابية');
@@ -1093,6 +1128,318 @@ async function openQrScanner(){
   if(cancelBtn) cancelBtn.onclick = closeQrScanner;
   const modal = document.getElementById('qrScanModal');
   if(modal) modal.onclick = (e) => { if(e.target === modal) closeQrScanner(); };
+})();
+
+// ===== نافذة سجل الحركة =====
+(function bindActivityLog(){
+  var _logCache = [];
+  var _unsub = null;
+  function netLabel(e){
+    if(e.online === false || e.net === 'none') return '<span class="log-net-off">⛔ غير متصل</span>';
+    if(e.net === 'wifi') return '<span class="log-net-wifi">📶 WiFi</span>';
+    if(e.net === 'cellular') return '<span class="log-net-cell">📱 بيانات الجوال</span>';
+    return '<span>🌐 متصل</span>';
+  }
+  function evMeta(e){
+    switch(e.event){
+      case 'login':  return { ic:'🟢', cls:'ev-login' };
+      case 'logout': return { ic:'🔴', cls:'ev-logout' };
+      case 'order':  return { ic:'🛒', cls:'ev-order' };
+      case 'print':  return { ic:'🖨️', cls:'ev-print' };
+      default:       return { ic:'•', cls:'' };
+    }
+  }
+  function fmtTime(ts){
+    try{ return new Date(ts).toLocaleString('ar-u-nu-latn',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; }
+  }
+  function render(){
+    var listEl = document.getElementById('logList'); if(!listEl) return;
+    var q = (document.getElementById('logSearch')||{}).value || '';
+    q = q.trim().toLowerCase();
+    var uf = (document.getElementById('logUserFilter')||{}).value || '';
+    // تعبئة قائمة المستخدمين
+    var sel = document.getElementById('logUserFilter');
+    if(sel){
+      var users = {};
+      _logCache.forEach(function(e){ var u = e.user || e.username || 'زائر'; users[u] = true; });
+      var cur = sel.value;
+      sel.innerHTML = '<option value="">كل المستخدمين</option>' + Object.keys(users).map(function(u){ return '<option value="'+esc(u)+'">'+esc(u)+'</option>'; }).join('');
+      sel.value = cur;
+    }
+    var rows = _logCache.slice().reverse().filter(function(e){
+      if(uf && (e.user||e.username||'زائر') !== uf) return false;
+      if(q){
+        var hay = ((e.user||'')+' '+(e.username||'')+' '+(e.action||'')+' '+(e.role||'')).toLowerCase();
+        if(hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+    if(rows.length === 0){ listEl.innerHTML = '<div class="log-empty">لا توجد حركات مطابقة</div>'; return; }
+    listEl.innerHTML = rows.map(function(e){
+      var m = evMeta(e);
+      return '<div class="log-item '+m.cls+'">'+
+        '<div class="log-ic">'+m.ic+'</div>'+
+        '<div class="log-main">'+
+          '<div class="log-user">'+esc(e.user||e.username||'زائر')+(e.role?' · <span style="font-weight:400;color:#64748b">'+esc(e.role)+'</span>':'')+'</div>'+
+          '<div class="log-act">'+esc(e.action||'')+'</div>'+
+          '<div class="log-meta"><span>🕒 '+fmtTime(e.ts)+'</span>'+netLabel(e)+'</div>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+  function open(){
+    var modal = document.getElementById('activityLogModal'); if(!modal) return;
+    modal.classList.add('show');
+    if(window.DB && typeof DB.onActivityLog==='function'){
+      try{ if(_unsub) _unsub(); }catch(e){}
+      _unsub = DB.onActivityLog(function(list){ _logCache = Array.isArray(list)?list:[]; render(); });
+    } else if(window.DB && typeof DB.getActivityLog==='function'){
+      DB.getActivityLog().then(function(list){ _logCache = list||[]; render(); });
+    }
+  }
+  function close(){
+    var modal = document.getElementById('activityLogModal'); if(modal) modal.classList.remove('show');
+    try{ if(_unsub){ _unsub(); _unsub = null; } }catch(e){}
+  }
+  var btn = document.getElementById('activityLogBtn');
+  if(btn) btn.onclick = open;
+  var cl = document.getElementById('closeActivityLog');
+  if(cl) cl.onclick = close;
+  var modalEl = document.getElementById('activityLogModal');
+  if(modalEl) modalEl.onclick = function(e){ if(e.target === modalEl) close(); };
+  var s = document.getElementById('logSearch');
+  if(s) s.oninput = render;
+  var f = document.getElementById('logUserFilter');
+  if(f) f.onchange = render;
+  var cb = document.getElementById('logClearBtn');
+  if(cb) cb.onclick = function(){
+    if(!confirm('مسح كل سجل الحركة نهائياً؟')) return;
+    if(window.DB && typeof DB.clearActivityLog==='function'){
+      DB.clearActivityLog().then(function(){ _logCache = []; render(); showToast('تم مسح السجل'); });
+    }
+  };
+})();
+
+// ===== طوارئ النظام (شاشة الصيانة) =====
+// تُطبّق لدى جميع المستخدمين عبر الإعدادات السحابية
+function applyMaintenance(m){
+  m = m || {};
+  var ov = document.getElementById('maintOverlay'); if(!ov) return;
+  var isMgr = (typeof isManagerUser==='function' && isManagerUser());
+  if(m.active){
+    var t = document.getElementById('maintTitle'); if(t) t.textContent = m.title || 'النظام تحت الصيانة';
+    var n = document.getElementById('maintNote'); if(n) n.textContent = m.note || 'نعتذر عن الإزعاج، نقوم حالياً بأعمال صيانة لتحسين الخدمة. سنعود قريباً.';
+    // زر إنهاء الصيانة يظهر للمدير فقط حتى يتمكن من الخروج
+    var ex = document.getElementById('maintExitBtn'); if(ex) ex.style.display = isMgr ? '' : 'none';
+    ov.classList.add('show');
+  } else {
+    ov.classList.remove('show');
+  }
+}
+(function bindMaintenance(){
+  function saveMaint(active){
+    var cur = (typeof RESTAURANT!=='undefined' && RESTAURANT.maintenance) || {};
+    var m = {
+      active: !!active,
+      title: (document.getElementById('maintTitleInput')||{}).value || cur.title || '',
+      note: (document.getElementById('maintNoteInput')||{}).value || cur.note || '',
+      ts: Date.now()
+    };
+    var merged = Object.assign({}, RESTAURANT, { maintenance: m });
+    var st = document.getElementById('maintStatus'); if(st) st.textContent = 'جارٍ الحفظ...';
+    Promise.resolve(DB.saveSettings(merged)).then(function(){
+      if(st) st.textContent = active ? '✅ تم تفعيل الصيانة لجميع المستخدمين' : '✅ تم إيقاف الصيانة';
+      showToast(active ? '🚨 تم تفعيل طوارئ النظام' : '✅ تم إيقاف الصيانة');
+      try{ if(typeof logActivity==='function') logActivity('action', active ? 'تفعيل طوارئ النظام' : 'إيقاف طوارئ النظام'); }catch(e){}
+      if(!active){ var cm = document.getElementById('maintCtrlModal'); if(cm) cm.classList.remove('show'); }
+    }).catch(function(){ if(st) st.textContent = '⛔ تعذر الحفظ'; });
+  }
+  var btn = document.getElementById('dashMaintBtn');
+  if(btn) btn.onclick = function(){
+    var cur = (typeof RESTAURANT!=='undefined' && RESTAURANT.maintenance) || {};
+    var ti = document.getElementById('maintTitleInput'); if(ti) ti.value = cur.title || '';
+    var no = document.getElementById('maintNoteInput'); if(no) no.value = cur.note || '';
+    var st = document.getElementById('maintStatus'); if(st) st.textContent = cur.active ? '🚨 الصيانة مفعّلة حالياً' : '';
+    var cm = document.getElementById('maintCtrlModal'); if(cm) cm.classList.add('show');
+  };
+  var cl = document.getElementById('closeMaintCtrl');
+  if(cl) cl.onclick = function(){ var cm = document.getElementById('maintCtrlModal'); if(cm) cm.classList.remove('show'); };
+  var cm2 = document.getElementById('maintCtrlModal');
+  if(cm2) cm2.onclick = function(e){ if(e.target === cm2) cm2.classList.remove('show'); };
+  var act = document.getElementById('maintActivateBtn'); if(act) act.onclick = function(){ saveMaint(true); };
+  var deact = document.getElementById('maintDeactivateBtn'); if(deact) deact.onclick = function(){ saveMaint(false); };
+  var ex = document.getElementById('maintExitBtn'); if(ex) ex.onclick = function(){ if(confirm('إنهاء وضع الصيانة لجميع المستخدمين؟')) saveMaint(false); };
+})();
+
+// ===== الميزات الجديدة (تُعرض مرة واحدة لكل مستخدم عند كل تحديث) =====
+var _whatsNewShownVer = null;
+function maybeShowWhatsNew(wn){
+  wn = wn || {};
+  if(!wn.ver || !Array.isArray(wn.items) || wn.items.length === 0) return;
+  // لا تعرض قبل تسجيل الدخول
+  if(!(typeof currentPosUser!=='undefined' && currentPosUser)) return;
+  if(_whatsNewShownVer === wn.ver) return;
+  var key = 'bms_whatsnew_seen_' + ((currentPosUser && currentPosUser.username) || '');
+  var seen = 0;
+  try{ seen = parseInt(localStorage.getItem(key)||'0', 10) || 0; }catch(e){}
+  if(seen === wn.ver) return;        // شوهدت هذه النسخة مسبقاً
+  // عرض النافذة
+  var titleEl = document.getElementById('whatsNewShowTitle'); if(titleEl) titleEl.textContent = wn.title || 'ما الجديد؟';
+  var listEl = document.getElementById('whatsNewShowList');
+  if(listEl) listEl.innerHTML = wn.items.map(function(it){ return '<li>'+esc(String(it))+'</li>'; }).join('');
+  var modal = document.getElementById('whatsNewShowModal'); if(modal) modal.classList.add('show');
+  _whatsNewShownVer = wn.ver;
+  try{ localStorage.setItem(key, String(wn.ver)); }catch(e){}
+}
+(function bindWhatsNew(){
+  var btn = document.getElementById('dashWhatsNewBtn');
+  if(btn) btn.onclick = function(){
+    var wn = (typeof RESTAURANT!=='undefined' && RESTAURANT.whatsNew) || {};
+    var ti = document.getElementById('whatsNewTitleInput'); if(ti) ti.value = wn.title || '';
+    var tx = document.getElementById('whatsNewItemsInput'); if(tx) tx.value = (Array.isArray(wn.items)?wn.items:[]).join('\n');
+    var st = document.getElementById('whatsNewEditStatus'); if(st) st.textContent = '';
+    var m = document.getElementById('whatsNewEditModal'); if(m) m.classList.add('show');
+  };
+  var cl = document.getElementById('closeWhatsNewEdit');
+  if(cl) cl.onclick = function(){ var m = document.getElementById('whatsNewEditModal'); if(m) m.classList.remove('show'); };
+  var me = document.getElementById('whatsNewEditModal');
+  if(me) me.onclick = function(e){ if(e.target === me) me.classList.remove('show'); };
+  var sv = document.getElementById('whatsNewSaveBtn');
+  if(sv) sv.onclick = function(){
+    var title = (document.getElementById('whatsNewTitleInput')||{}).value || '';
+    var raw = (document.getElementById('whatsNewItemsInput')||{}).value || '';
+    var items = raw.split('\n').map(function(x){ return x.trim(); }).filter(function(x){ return x.length; });
+    var st = document.getElementById('whatsNewEditStatus');
+    if(items.length === 0){ if(st) st.textContent = '⛔ أضف ميزة واحدة على الأقل'; return; }
+    var wn = { ver: Date.now(), title: title.trim(), items: items };
+    var merged = Object.assign({}, RESTAURANT, { whatsNew: wn });
+    if(st) st.textContent = 'جارٍ الحفظ...';
+    Promise.resolve(DB.saveSettings(merged)).then(function(){
+      if(st) st.textContent = '✅ تم الحفظ — ستُعرض لكل مستخدم مرة واحدة';
+      showToast('📣 تم نشر الميزات الجديدة');
+      // لا تعرضها للمدير نفسه الذي حررها (اعتبرها مشاهدة)
+      try{ var k='bms_whatsnew_seen_'+((currentPosUser&&currentPosUser.username)||''); localStorage.setItem(k, String(wn.ver)); _whatsNewShownVer = wn.ver; }catch(e){}
+      setTimeout(function(){ var m = document.getElementById('whatsNewEditModal'); if(m) m.classList.remove('show'); }, 700);
+    }).catch(function(){ if(st) st.textContent = '⛔ تعذر الحفظ'; });
+  };
+  var got = document.getElementById('whatsNewGotIt');
+  if(got) got.onclick = function(){ var m = document.getElementById('whatsNewShowModal'); if(m) m.classList.remove('show'); };
+})();
+
+// ===== التحديثات (نشر تحديث فوري لكل الأجهزة) =====
+// المدير يرفع الملفات على الموقع ثم يضغط «نشر التحديث» ليزيد رقم النسخة؛
+// كل جهاز يرى إشعار التحديث وعند الضغط يُمسح الكاش وتُحمَّل أحدث نسخة.
+var _updatePromptShownVer = null;
+function _getUpdateSeenVer(){
+  try{ return parseInt(localStorage.getItem('bms_update_seen')||'0', 10) || 0; }catch(e){ return 0; }
+}
+function _setUpdateSeenVer(v){
+  try{ localStorage.setItem('bms_update_seen', String(v)); }catch(e){}
+}
+// تنفيذ التحديث الفعلي: مسح الكاش + إعادة تحميل (جسر أصلي داخل WebView وإلا المتصفح)
+// عرض شاشة تقدّم التحديث (بروغرس بار من 1 إلى 100 خلال ~30 ثانية) ثم إعادة التحميل
+var _updateProgressRunning = false;
+function runUpdateProgress(onDone){
+  if(_updateProgressRunning) return; _updateProgressRunning = true;
+  var overlay = document.getElementById('updateProgressOverlay');
+  var fill = document.getElementById('updateProgressFill');
+  var pct = document.getElementById('updateProgressPct');
+  if(overlay) overlay.classList.add('show');
+  var DURATION = 30000; // ~30 ثانية
+  var start = Date.now();
+  var pending = false;
+  var timer = setInterval(function(){
+    var p = Math.min(100, Math.round(((Date.now() - start) / DURATION) * 100));
+    if(p < 1) p = 1;
+    if(fill) fill.style.width = p + '%';
+    if(pct) pct.textContent = p + '%';
+    if(p >= 100 && !pending){
+      pending = true;
+      clearInterval(timer);
+      setTimeout(function(){ try{ (onDone||performAppReload)(); }catch(e){ performAppReload(); } }, 400);
+    }
+  }, 200);
+}
+
+function performAppReload(){
+  // 1) داخل تطبيق الأندرويد: اطلب من الجسر الأصلي مسح الكاش ثم إعادة التحميل
+  try{ if(window.AndroidApp && typeof window.AndroidApp.clearAndReload === 'function'){ window.AndroidApp.clearAndReload(); return; } }catch(e){}
+  // 2) في المتصفح: ألغ تسجيل Service Worker وامسح ذاكرة الكاش ثم أعد التحميل
+  var done = false;
+  function reloadNow(){ if(done) return; done = true; try{ location.reload(); }catch(e){ location.href = location.href; } }
+  try{
+    var tasks = [];
+    if('caches' in window){ tasks.push(caches.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return caches.delete(k); })); }).catch(function(){})); }
+    if('serviceWorker' in navigator){ tasks.push(navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(r){ return r.unregister(); })); }).catch(function(){})); }
+    Promise.all(tasks).then(reloadNow).catch(reloadNow);
+    setTimeout(reloadNow, 1500); // ضمان إعادة التحميل مهما حدث
+  }catch(e){ reloadNow(); }
+}
+// إظهار إشعار التحديث لدى المستخدم إن توفرت نسخة أحدث
+function maybeShowUpdate(au){
+  au = au || {};
+  var ver = parseInt(au.ver, 10) || 0;
+  if(ver <= 0) return;
+  if(!(typeof currentPosUser!=='undefined' && currentPosUser)) return; // لا تعرض قبل الدخول
+  if(_updatePromptShownVer === ver) return;
+  if(_getUpdateSeenVer() >= ver) return; // هذا الجهاز محدَّث أصلاً
+  var noteEl = document.getElementById('updatePromptNote');
+  if(noteEl && au.note){ noteEl.textContent = au.note; }
+  var modal = document.getElementById('updatePromptModal'); if(modal) modal.classList.add('show');
+  _updatePromptShownVer = ver;
+}
+(function bindUpdates(){
+  // زر التحكم (للمدير)
+  var btn = document.getElementById('dashUpdateBtn');
+  if(btn) btn.onclick = function(){
+    var cur = (typeof RESTAURANT!=='undefined' && RESTAURANT.appUpdate) || {};
+    var cv = document.getElementById('updateCurVer'); if(cv) cv.textContent = String(parseInt(cur.ver,10)||0);
+    var ni = document.getElementById('updateNoteInput'); if(ni) ni.value = cur.note || '';
+    var st = document.getElementById('updateCtrlStatus'); if(st) st.textContent = '';
+    var m = document.getElementById('updateCtrlModal'); if(m) m.classList.add('show');
+  };
+  var cl = document.getElementById('closeUpdateCtrl');
+  if(cl) cl.onclick = function(){ var m = document.getElementById('updateCtrlModal'); if(m) m.classList.remove('show'); };
+  var mc = document.getElementById('updateCtrlModal');
+  if(mc) mc.onclick = function(e){ if(e.target === mc) mc.classList.remove('show'); };
+  // نشر تحديث جديد لكل المستخدمين
+  var pub = document.getElementById('updatePublishBtn');
+  if(pub) pub.onclick = function(){
+    var cur = (typeof RESTAURANT!=='undefined' && RESTAURANT.appUpdate) || {};
+    var newVer = (parseInt(cur.ver,10)||0) + 1;
+    var note = (document.getElementById('updateNoteInput')||{}).value || '';
+    var au = { ver: newVer, note: String(note).trim(), ts: Date.now() };
+    var merged = Object.assign({}, RESTAURANT, { appUpdate: au });
+    var st = document.getElementById('updateCtrlStatus'); if(st) st.textContent = 'جارٍ النشر...';
+    Promise.resolve(DB.saveSettings(merged)).then(function(){
+      // اعتبر جهاز المدير الناشر محدَّثاً حتى لا يظهر له الإشعار
+      _setUpdateSeenVer(newVer); _updatePromptShownVer = newVer;
+      var cv = document.getElementById('updateCurVer'); if(cv) cv.textContent = String(newVer);
+      if(st) st.textContent = '✅ تم نشر التحديث (نسخة ' + newVer + ') لكل الأجهزة';
+      showToast('📢 تم نشر التحديث للمستخدمين');
+      try{ if(typeof logActivity==='function') logActivity('action', 'نشر تحديث للنظام (نسخة ' + newVer + ')'); }catch(e){}
+    }).catch(function(){ if(st) st.textContent = '⛔ تعذر النشر'; });
+  };
+  // تحديث جهاز المدير نفسه فوراً
+  var self = document.getElementById('updateSelfReloadBtn');
+  if(self) self.onclick = function(){ runUpdateProgress(performAppReload); };
+  // إشعار المستخدم: تحديث الآن / لاحقاً
+  var now = document.getElementById('updateNowBtn');
+  if(now) now.onclick = function(){
+    var cur = (typeof RESTAURANT!=='undefined' && RESTAURANT.appUpdate) || {};
+    _setUpdateSeenVer(parseInt(cur.ver,10)||0); // سنحمّل النسخة الجديدة الآن
+    var m = document.getElementById('updatePromptModal'); if(m) m.classList.remove('show');
+    runUpdateProgress(performAppReload);
+  };
+  var later = document.getElementById('updateLaterBtn');
+  if(later) later.onclick = function(){ var m = document.getElementById('updatePromptModal'); if(m) m.classList.remove('show'); };
+  // زر التحديث لكل المستخدمين (بجانب زر التبديل)
+  var posUp = document.getElementById('posUpdateBtn');
+  if(posUp) posUp.onclick = function(){
+    var cur = (typeof RESTAURANT!=='undefined' && RESTAURANT.appUpdate) || {};
+    try{ _setUpdateSeenVer(parseInt(cur.ver,10)||0); }catch(e){}
+    runUpdateProgress(performAppReload);
+  };
 })();
 
 document.querySelectorAll('#custModal .cmf-btn').forEach(b => {
@@ -1653,7 +2000,21 @@ function updatePosUserBox(){
   } else {
     box.style.display = 'none';
   }
+  // زر سجل الحركة: يظهر للمدير فقط (يُضبط عند كل تغيير مستخدم)
+  try{
+    var _logBtn = document.getElementById('activityLogBtn');
+    if(_logBtn) _logBtn.style.display = (typeof isManagerUser==='function' && isManagerUser()) ? '' : 'none';
+  }catch(e){}
+  // أزرار طوارئ النظام + الميزات الجديدة (للمدير فقط — تُضبط عند كل تغيير مستخدم)
+  try{
+    var _isMgr2 = (typeof isManagerUser==='function' && isManagerUser());
+    var _mb2 = document.getElementById('dashMaintBtn'); if(_mb2) _mb2.style.display = _isMgr2 ? '' : 'none';
+    var _wn2 = document.getElementById('dashWhatsNewBtn'); if(_wn2) _wn2.style.display = _isMgr2 ? '' : 'none';
+    var _up2 = document.getElementById('dashUpdateBtn'); if(_up2) _up2.style.display = _isMgr2 ? '' : 'none';
+  }catch(e){}
   try{ if(typeof window.featuresOnUserChange==='function') window.featuresOnUserChange(); }catch(e){}
+  // إعادة تقييم شاشة الصيانة والميزات الجديدة بعد تغيير المستخدم
+  try{ if(typeof RESTAURANT!=='undefined'){ applyMaintenance(RESTAURANT.maintenance); maybeShowWhatsNew(RESTAURANT.whatsNew); if(typeof maybeShowUpdate==='function') maybeShowUpdate(RESTAURANT.appUpdate); } }catch(e){}
 }
 
 // أزرار تفعيل الدخول الحيوي بعد الدخول — تظهر فقط إن دعمها الجهاز وسمح بها المدير
@@ -1738,6 +2099,7 @@ function setupPosLogin(){
     updatePosUserBox();
     routeAfterLogin();
     showToast('أهلاً ' + currentPosUser.name);
+    try{ logActivity('login', 'تسجيل دخول' + (opts.bio ? ' (بصمة)' : '')); }catch(e){}
     if(opts.welcome) maybeShowWelcome(found);
     if(notifSupported() && Notification.permission === 'default') requestNotifPermission();
   }
@@ -1768,6 +2130,7 @@ function setupPosLogin(){
   const logoutBtn = document.getElementById('posLogoutBtn');
   if(logoutBtn) logoutBtn.onclick = () => {
     if(!confirm('تسجيل الخروج؟')) return;
+    try{ logActivity('logout', 'تسجيل خروج'); }catch(e){}
     currentPosUser = null;
     try{ sessionStorage.removeItem('pos_user'); }catch(e){}
     updatePosUserBox();
@@ -1785,6 +2148,7 @@ function setupPosLogin(){
   const dashLogout = document.getElementById('dashLogoutBtn');
   if(dashLogout) dashLogout.onclick = () => {
     if(!confirm('تسجيل الخروج؟')) return;
+    try{ logActivity('logout', 'تسجيل خروج'); }catch(e){}
     currentPosUser = null;
     try{ sessionStorage.removeItem('pos_user'); }catch(e){}
     updatePosUserBox();
@@ -2567,6 +2931,20 @@ function applySettings(cfg){
   // إظهار/إخفاء زر قراءة كود QR حسب الإعدادات
   const qrBtn = document.getElementById('qrScanBtn');
   if(qrBtn) qrBtn.style.display = (RESTAURANT.qrEnabled === false) ? 'none' : '';
+  // زر سجل الحركة: يظهر للمدير (ويمكن إخفاؤه لكل مستخدم من الصلاحيات)
+  const logBtnEl = document.getElementById('activityLogBtn');
+  if(logBtnEl) logBtnEl.style.display = (typeof isManagerUser==='function' && isManagerUser()) ? '' : 'none';
+  // أزرار طوارئ النظام + الميزات الجديدة (للمدير فقط)
+  try{
+    var _isMgr = (typeof isManagerUser==='function' && isManagerUser());
+    var _mb = document.getElementById('dashMaintBtn'); if(_mb) _mb.style.display = _isMgr ? '' : 'none';
+    var _wn = document.getElementById('dashWhatsNewBtn'); if(_wn) _wn.style.display = _isMgr ? '' : 'none';
+    var _up = document.getElementById('dashUpdateBtn'); if(_up) _up.style.display = _isMgr ? '' : 'none';
+  }catch(e){}
+  // تطبيق شاشة الصيانة + عرض الميزات الجديدة
+  try{ applyMaintenance(RESTAURANT.maintenance); }catch(e){}
+  try{ maybeShowWhatsNew(RESTAURANT.whatsNew); }catch(e){}
+  try{ if(typeof maybeShowUpdate==='function') maybeShowUpdate(RESTAURANT.appUpdate); }catch(e){}
   // إظهار/إخفاء أزرار نوع الطلب (محلي/سفري/توصيل) حسب الإعدادات
   applyOrderTypeVisibility(RESTAURANT.orderTypes);
   // إظهار/إخفاء وحجم أزرار الواجهة (features.js)
