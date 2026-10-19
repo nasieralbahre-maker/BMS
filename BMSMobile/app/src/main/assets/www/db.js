@@ -89,6 +89,12 @@ const DB = (function(){
     chatPurgeDay: 6,           // يوم الأسبوع (0=الأحد ... 6=السبت)
     chatPurgeKeepDays: 7,      // الاحتفاظ برسائل آخر N يوم (0 = حذف الكل)
     chatPurgeLastRun: 0,       // آخر تشغيل للتنظيف التلقائي
+    // ----- طوارئ النظام (شاشة الصيانة) -----
+    maintenance: { active:false, title:'', note:'', ts:0 },
+    // ----- الميزات الجديدة (تُعرض مرة واحدة عند كل تحديث) -----
+    whatsNew: { ver:0, title:'', items:[] },
+    // ----- التحديثات (نشر تحديث فوري لكل الأجهزة: يمسح الكاش ويعيد التحميل) -----
+    appUpdate: { ver:0, note:'', ts:0 },
     // ----- استضافة Netlify (اختياري) -----
     netlifyToken: '',     // رمز وصول شخصي من Netlify (Personal Access Token)
     netlifySlug: '',      // اسم الحساب (Account slug) لجلب استهلاك الباقة
@@ -201,6 +207,21 @@ const DB = (function(){
     out.chatPurgeDay = (s && s.chatPurgeDay != null) ? Math.min(6, Math.max(0, parseInt(s.chatPurgeDay,10)||0)) : DEFAULT_SETTINGS.chatPurgeDay;
     out.chatPurgeKeepDays = (s && s.chatPurgeKeepDays != null) ? Math.max(0, parseInt(s.chatPurgeKeepDays,10)||0) : DEFAULT_SETTINGS.chatPurgeKeepDays;
     out.chatPurgeLastRun = (s && s.chatPurgeLastRun) || 0;
+    // طوارئ النظام + الميزات الجديدة (حفظ كامل البنية)
+    out.maintenance = Object.assign({}, DEFAULT_SETTINGS.maintenance, (s && s.maintenance) || {});
+    var wnIn = (s && s.whatsNew) || {};
+    out.whatsNew = {
+      ver: (wnIn.ver != null ? wnIn.ver : DEFAULT_SETTINGS.whatsNew.ver),
+      title: (wnIn.title != null ? wnIn.title : DEFAULT_SETTINGS.whatsNew.title),
+      items: Array.isArray(wnIn.items) ? wnIn.items : []
+    };
+    // التحديثات
+    var auIn = (s && s.appUpdate) || {};
+    out.appUpdate = {
+      ver: (auIn.ver != null ? auIn.ver : DEFAULT_SETTINGS.appUpdate.ver),
+      note: (auIn.note != null ? auIn.note : DEFAULT_SETTINGS.appUpdate.note),
+      ts: (auIn.ts != null ? auIn.ts : DEFAULT_SETTINGS.appUpdate.ts)
+    };
     return out;
   }
   function lsSettings(){
@@ -347,6 +368,58 @@ const DB = (function(){
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);
   }
+
+  // =================== سجل الحركة (ACTIVITY LOG) ===================
+  // تُحفظ كقائمة داخل مستند settings/activity_log (يعمل سحابياً ومحلياً).
+  // كل حركة: {id, user, role, event:'login'|'logout'|'order'|'print'|'action',
+  //           action, net:'wifi'|'cellular'|'none'|'unknown', online, ts}
+  var ACTIVITY_LOG_MAX = 1000;
+  function lsActivity(){ try{ return JSON.parse(localStorage.getItem('activity_log')||'[]'); }catch(e){ return []; } }
+  function lsSaveActivity(a){ try{ localStorage.setItem('activity_log', JSON.stringify(a)); }catch(e){} }
+
+  async function getActivityLog(){
+    if(useFB()){
+      try{
+        const doc = await withTimeout(window.fbdb.collection('settings').doc('activity_log').get(), 5000);
+        return (doc.exists && Array.isArray(doc.data().list)) ? doc.data().list : [];
+      }catch(e){
+        console.warn('[DB] تعذر جلب سجل الحركة:', e.message);
+        return [];
+      }
+    }
+    return lsActivity();
+  }
+  async function addActivity(entry){
+    try{
+      let list = await getActivityLog();
+      entry = entry || {};
+      entry.id = entry.id || ('act_' + Date.now() + '_' + Math.floor(Math.random()*1000));
+      entry.ts = entry.ts || Date.now();
+      list.push(entry);
+      // سقف ~1000 سطر (نبقي الأحدث)
+      if(list.length > ACTIVITY_LOG_MAX) list = list.slice(list.length - ACTIVITY_LOG_MAX);
+      if(useFB()){ await window.fbdb.collection('settings').doc('activity_log').set({list}); }
+      else { lsSaveActivity(list); }
+      return entry;
+    }catch(e){ console.warn('[DB] تعذر تسجيل الحركة:', e.message); return null; }
+  }
+  async function clearActivityLog(){
+    if(useFB()){ await window.fbdb.collection('settings').doc('activity_log').set({list:[]}); }
+    else { lsSaveActivity([]); }
+    return true;
+  }
+  function onActivityLog(cb){
+    if(useFB()){
+      return window.fbdb.collection('settings').doc('activity_log').onSnapshot(doc => {
+        cb((doc.exists && Array.isArray(doc.data().list)) ? doc.data().list : []);
+      });
+    }
+    cb(lsActivity());
+    const handler = e => { if(e.key === 'activity_log') cb(lsActivity()); };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }
+
   // =================== استمارات العملاء (CUSTOMER FORMS) ===================
   // تُحفظ كقائمة داخل مستند settings/cust_forms (يعمل سحابياً ومحلياً).
   // كل استمارة: {id, createdBy, createdByName, name, phone, hasWa, items:[...],
@@ -756,6 +829,7 @@ const DB = (function(){
     purgeOrdersBefore,
     setDataSaver,
     getSignupRequests, addSignupRequest, updateSignupRequest, deleteSignupRequest, onSignupRequests, genActivationCode, isCodeExpired, ACTIVATION_CODE_TTL,
+    getActivityLog, addActivity, clearActivityLog, onActivityLog,
     getCustForms, addCustForm, updateCustForm, deleteCustForm, onCustForms, getCustFormByToken,
     getOrderForms, addOrderForm, getOrderFormByToken, updateOrderForm, deleteOrderForm, onOrderForms,
     getOrderSubs, addOrderSub, updateOrderSub, onOrderSubs, genToken,
